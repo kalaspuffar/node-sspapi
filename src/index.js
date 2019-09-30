@@ -1,10 +1,10 @@
 const Blowfish = require('egoroof-blowfish');
 const express = require('express');
 const qr = require('qr-image');  
-const sodium = require('libsodium-wrappers');
+const sodium = require('libsodium');
 
 const port = 15134;
-const domain = 'localhost:' + port;
+const site_url = 'https://localhost:' + port;
 const blowfishSecret = 'supersecret';
 var bfCounter = 1;
 
@@ -21,7 +21,7 @@ const BAD_ID_ASSOCIATION = 256;
 const app = express();
 const bf = new Blowfish(blowfishSecret, Blowfish.MODE.ECB, Blowfish.PADDING.NULL);
 
-const transientSessions = array();
+const transientSessions = [];
 
 app.get('/nut.sqrl', createNut);
 app.get('/png.sqrl', createImage);
@@ -72,7 +72,13 @@ function createNut(req, res) {
 function createImage(req, res) {
     let nut = Object.keys(req.query)[0];
 
-    let code = qr.image('sqrl://' + domain + '/cli.sqrl?x=1&nut=' + nut , { type: 'png' });  
+    var urlObj = new URL(site_url);
+    var domain = urlObj.hostname;
+    if(urlObj.port) {
+        domain +=  ':' + urlObj.port;
+    }
+
+    let code = qr.image('sqrl://' + domain + '/cli.sqrl?nut=' + nut , { type: 'png' });  
     code.pipe(res);  
 }
 
@@ -86,7 +92,7 @@ function generateNut() {
  * Return with information to the server about the error that occured.
  */
 function exitWithErrorCode(res, retVal, clientProvidedSession = false, transientSession = false) {
-    response = array();
+    response = [];
     response.push("ver=1");
     response.push("tif=" + dechex(retVal));
     response.push("sin=0");
@@ -182,16 +188,16 @@ function getPathLength() {
  * This function returns the server url without path
  */
 function getServerUrlWithoutPath() {
-    $parsedURL = parse_url(get_site_url());
+    var urlObj = new URL(site_url)
 
-    $url = $parsedURL['scheme'];
-    $url .= '://';
-    $url .= $parsedURL['host'];
-    if (!empty($parsedURL['port'])) {
-        $url .= ':';
-        $url .= $parsedURL['port'];
+    var url = urlObj.scheme;
+    url += '://';
+    url += urlObj.hostname;;
+    if (urlObj.port) {
+        url += ':';
+        url += urlObj.port;
     }
-    return $url;
+    return url;
 }
 
 function handleClientCalls(req, res) {
@@ -220,7 +226,7 @@ function handleClientCalls(req, res) {
      * Split the client variables into an array so we can use them later.
      */
     clientStr = base64url_decode(req.query.client).split("\r\n");
-    client = array();
+    client = [];
     for(let i=0; i<clientStr.length; i++) {
         var valuePair = clientStr[i].split("=");
         client[valuePair[0]] = valuePair[1];
@@ -269,7 +275,7 @@ function handleClientCalls(req, res) {
             server[valuePair[0]] = valuePair[1];
         }
     } else {
-        server = array();
+        server = [];
         for(var i=0; i<serverStr.length; i++) {
             var valuePair = serverStr[i].split("=");
             server[valuePair[0]] = valuePair[1];
@@ -287,7 +293,7 @@ function handleClientCalls(req, res) {
      * hardlock = Client request all "out of band" changes to the account. Like security questions to
      * 			  retrieve the account when password is lost.
      */
-    options = array();
+    options = [];
     optionSplit = client["opt"].split("~");
     for(var i=0; i<optionSplit.length; i++) {
         $options[optionSplit[i]] = true;
@@ -329,7 +335,7 @@ function handleClientCalls(req, res) {
     pathLenParam = getPathLength();
 
     associatedExistingUser = false;
-    response = array();
+    response = [];
     response.push("ver=1");
 
     if(client['cmd'] == 'query') {
