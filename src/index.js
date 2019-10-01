@@ -1,10 +1,12 @@
 const Blowfish = require('egoroof-blowfish');
+const https = require('https')
 const express = require('express');
 const qr = require('qr-image');  
 const sodium = require('libsodium');
+const url = require('url');
 
 const port = 15134;
-const site_url = 'https://localhost:' + port;
+const site_url = 'https://192.168.6.2:' + port;
 const blowfishSecret = 'supersecret';
 var bfCounter = 1;
 
@@ -19,7 +21,10 @@ const CLIENT_FAILURE = 128;
 const BAD_ID_ASSOCIATION = 256;
 
 const app = express();
+const cors = require('cors')
 const bf = new Blowfish(blowfishSecret, Blowfish.MODE.ECB, Blowfish.PADDING.NULL);
+
+app.use(cors());
 
 const transientSessions = [];
 
@@ -37,7 +42,14 @@ app.get('/lst.sqrl', listAccountInformation);
 app.get('/inv.sqrl', registerInvitation);
 
 
-app.listen(port, () => console.log(`SSPAPI listening on port ${port}!`))
+https.createServer({
+    key: fs.readFileSync('server.key'),
+    cert: fs.readFileSync('server.cert')    
+}, app).listen(port, () => {
+    console.log(`SSPAPI listening on port ${port}!`)
+});
+
+//app.listen(port, () => console.log(`SSPAPI listening on port ${port}!`))
 
 function base64url_encode(str) {
     let buff = new Buffer(str);
@@ -72,7 +84,7 @@ function createNut(req, res) {
 function createImage(req, res) {
     let nut = Object.keys(req.query)[0];
 
-    var urlObj = new URL(site_url);
+    var urlObj = url.parse(site_url);
     var domain = urlObj.hostname;
     if(urlObj.port) {
         domain +=  ':' + urlObj.port;
@@ -138,61 +150,70 @@ function onlyAllowBase64URL(res, str) {
     }
 }
 
-
-function getClientIP() {
-
+function getClientIP(request) {
+    var ip = request.headers['x-forwarded-for'] ||
+        request.connection.remoteAddress ||
+        request.socket.remoteAddress ||
+        request.connection.socket.remoteAddress;
+    ip = ip.split(',')[0];
+    ip = ip.split(':').slice(-1); //in case the ip returned in a format: "::ffff:146.xxx.xxx.xxx"
+    return ip;
 }
 
 function accountPresent(idk) {
-
+    return false;
 }
 
 function getServerUnlockKey(client) {
-
+    console.log("getServerUnlockKey");
 }
 
 function accountDisabled(client) {
-
+    console.log("accountDisabled");
 }
 
 function getUserId() {
-
+    console.log("getUserId");
 }
 
 function getVerifyUnlockKey(client) {
-
+    console.log("getVerifyUnlockKey");
 }
 
 function enableUser(user) {
-
+    console.log("enableUser");
 }
 
 function disableUser(user) {
-    
+    console.log("disableUser");    
 }
 
 function disAssociateUser(user) {
-
+    console.log("disAssociateUser");
 }
 
 function dechex(retVal) {
-
+    return retVal.toString(16);
 }
 
 function getPathLength() {
+    var urlObj = url.parse(site_url)
 
+    if(urlObj.pathname.length > 0) {
+        return '&x=' + urlObj.pathname.length;
+    }
+    return "";
 }
-
 
 /**
  * This function returns the server url without path
  */
 function getServerUrlWithoutPath() {
-    var urlObj = new URL(site_url)
+    var urlObj = url.parse(site_url)
 
     var url = urlObj.scheme;
     url += '://';
-    url += urlObj.hostname;;
+    url += urlObj.hostname;
     if (urlObj.port) {
         url += ':';
         url += urlObj.port;
@@ -316,7 +337,7 @@ function handleClientCalls(req, res) {
     }
 
     if (options["noiptest"]) {
-        if (transientSession["ip"] == getClientIP()) {
+        if (transientSession["ip"] == getClientIP(req)) {
             retVal += IP_MATCHED;
         }
     }
@@ -419,14 +440,14 @@ function handleClientCalls(req, res) {
          * to securely login.
          */
         if(clientProvidedSession) {
-            response.push("url=" + getServerUrlWithoutPath() + $adminPostPath +
-                "?action=sqrl_login&nut=" + $nut +
+            response.push("url=" + getServerUrlWithoutPath() + adminPostPath +
+                "?action=sqrl_login&nut=" + nut +
                 (associatedExistingUser ? "&existingUser=1" : ""));
         } else {
             /**
              * Add session data signaling to the reload.js script that a login has been successfully transacted.
              */
-            transientSessions[transientSession["session"]] = $transientSession;
+            transientSessions[transientSession["session"]] = transientSession;
         }
 
     } else if(client['cmd'] == 'disable') {
@@ -462,7 +483,7 @@ function handleClientCalls(req, res) {
             /**
              * Add session data signaling to the reload.js script that a login has been successfully transacted.
              */
-            transientSessions[transientSession["session"]] = $transientSession;
+            transientSessions[transientSession["session"]] = transientSession;
         }
     } else if($client['cmd'] == 'enable') {
         /*
@@ -509,7 +530,7 @@ function handleClientCalls(req, res) {
             /**
              * Add session data signaling to the reload.js script that a login has been successfully transacted.
              */
-            transientSessions[transientSession["session"]] = $transientSession;
+            transientSessions[transientSession["session"]] = transientSession;
         }
     } else if($client['cmd'] == 'remove') {
         /*
@@ -544,12 +565,12 @@ function handleClientCalls(req, res) {
         if(clientProvidedSession) {
             profilePath = parse_url(admin_url('profile.php'), PHP_URL_PATH);
             if(transientSession["user"]) {
-                response.push("url=" + getServerUrlWithoutPath() + $profilePath);
+                response.push("url=" + getServerUrlWithoutPath() + profilePath);
             } else {
-                response.push("url=" + getServerUrlWithoutPath() + $adminPostPath + '?action=sqrl_logout&message=' + MESSAGE_REMOVED);
+                response.push("url=" + getServerUrlWithoutPath() + adminPostPath + '?action=sqrl_logout&message=' + MESSAGE_REMOVED);
             }
         } else {
-            transientSessions[transientSession["session"]] = $transientSession;
+            transientSessions[transientSession["session"]] = transientSession;
         }
     } else {
         /**
@@ -589,26 +610,32 @@ function handleClientCalls(req, res) {
 }
 
 function handlePageRedirect(req, res) {
-    res.send('Hello World!')
+    console.log('handlePageRedirect', req.query);
+    res.status(404).send('Not found');
 }
 
 function handleCPSRedirect(req, res) {
-    res.send('Hello World!')
+    console.log('handleCPSRedirect', req.query);
+    res.status(404).send('Not found');
 }
 
 function associateAccount(req, res) {
-    res.send('Hello World!')
+    console.log('associateAccount', req.query);
+    res.status(404).send('Not found');
 }
 
 function disassociateAccount(req, res) {
-    res.send('Hello World!')
+    console.log('disassociateAccount', req.query);
+    res.status(404).send('Not found');
 }
 
 function listAccountInformation(req, res) {
-    res.send('Hello World!')
+    console.log('listAccountInformation', req.query);
+    res.status(404).send('Not found');
 }
 
 function registerInvitation(req, res) {
-    res.send('Hello World!')
+    console.log('registerInvitation', req.query);
+    res.status(404).send('Not found');
 }
 

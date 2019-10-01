@@ -18,6 +18,7 @@
   },
   "homepage": "https://github.com/kalaspuffar/node-sspapi#readme",
   "dependencies": {
+    "cors": "^2.8.5",
     "egoroof-blowfish": "^2.2.0",
     "express": "^4.17.1",
     "libsodium": "^0.7.5",
